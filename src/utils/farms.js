@@ -1793,28 +1793,26 @@ async function getJoeFarms() {
     const joe = new ethers.Contract(joeBoostedMasterChefAddr, joeABI, provider)
     const totalBoostedPools = await joe.poolLength()
     console.log("totalBoostedPools: ", totalBoostedPools.toNumber())
-    let farms = []
-    for(let i=0; i < totalBoostedPools.toNumber(); i++) {
-        const poolInfo = await joe.poolInfo(i)
-        console.log(poolInfo)
-        farms.push(poolInfo)
-    }
+    let farms = await Promise.all(Array.from(Array(totalBoostedPools.toNumber()).keys()).map((i) => joe.poolInfo(i)))
     return farms
 }
 
-async function getPairName(pairAddress) {
+async function getPairInfo(pairAddress) {
     const provider = new ethers.providers.JsonRpcProvider("https://api.avax.network/ext/bc/C/rpc") 
     const joePair = new ethers.Contract(pairAddress, pairABI, provider)
-    const token0 = await joePair.token0()
-    const token1 = await joePair.token1()
-    const cToken0 = new ethers.Contract(token0, erc20ABI, provider)
-    const cToken1 = new ethers.Contract(token1, erc20ABI, provider)
+    const token0Addr = await joePair.token0()
+    const token1Addr = await joePair.token1()
+    const cToken0 = new ethers.Contract(token0Addr, erc20ABI, provider)
+    const cToken1 = new ethers.Contract(token1Addr, erc20ABI, provider)
     const token0Symbol = await cToken0.symbol()
     const token1Symbol = await cToken1.symbol()
-    return `${token0Symbol}-${token1Symbol}`
+    const totalSupply = await joePair.totalSupply()
+    const [reserve0, reserve1, t] = await joePair.getReserves()
+    const name = `${token0Symbol}-${token1Symbol}`
+    return {token0Addr, token1Addr, name, token0Symbol, token1Symbol, totalSupply, reserve0, reserve1}
 }
 
 export {
     getJoeFarms,
-    getPairName
+    getPairInfo
 }
