@@ -1809,7 +1809,8 @@ async function getPairInfo(pairAddress) {
     const totalSupply = await joePair.totalSupply()
     const [reserve0, reserve1, t] = await joePair.getReserves()
     const name = `${token0Symbol}-${token1Symbol}`
-    return {token0Addr, token1Addr, name, token0Symbol, token1Symbol, totalSupply, reserve0, reserve1}
+    const klast = await joePair.kLast()
+    return {token0Addr, token1Addr, name, token0Symbol, token1Symbol, totalSupply, reserve0, reserve1, klast}
 }
 
 export {
