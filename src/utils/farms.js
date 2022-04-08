@@ -1797,6 +1797,15 @@ async function getJoeFarms() {
     return farms
 }
 
+async function joePerSec() {
+    const joeBoostedMasterChefAddr = '0x4483f0b6e2F5486D06958C20f8C39A7aBe87bf8F'
+    const provider = new ethers.providers.JsonRpcProvider("https://api.avax.network/ext/bc/C/rpc")
+    const joe = new ethers.Contract(joeBoostedMasterChefAddr, joeABI, provider) 
+    const joePerSec = await joe.joePerSec()
+    console.log("joe per sec: ", joePerSec.toString())
+    return joePerSec
+}
+
 async function getPairInfo(pairAddress) {
     const provider = new ethers.providers.JsonRpcProvider("https://api.avax.network/ext/bc/C/rpc") 
     const joePair = new ethers.Contract(pairAddress, pairABI, provider)
@@ -1815,5 +1824,6 @@ async function getPairInfo(pairAddress) {
 
 export {
     getJoeFarms,
-    getPairInfo
+    getPairInfo,
+    joePerSec
 }
