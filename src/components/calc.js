@@ -3,6 +3,7 @@ import { joePerSec } from '../utils/farms'
 import { ethers } from 'ethers'
 import { ApolloClient, InMemoryCache, gql } from '@apollo/client'
 import joe from '../joe.png'
+import veJoeImg from '../veJOE.png'
 import css from './calc.css'
 
 export default function Calc() {
@@ -286,10 +287,10 @@ export default function Calc() {
             <div class="calc-inner-container">
                 <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
                     <img width="45" height="45" src={joe} style={{marginRight: "10px"}} />
-                    <h1 class='header'>Boosted Calculator</h1>
+                    <h1 class='header'>Boosted Pool Calculator</h1>
                 </div>
                 <h3>Address</h3>
-                <input style={{width: "300px", marginBottom: "10px"}} value={userAddr} type='text' placeholder='account address' onChange={e => setUserAddr(e.target.value)}/>
+                <input style={{width: "300px", marginBottom: "10px"}} placeholder={userAddr} type='text' onChange={e => setUserAddr(e.target.value)}/>
                 <h3>Pool</h3>
                 {
                     loading ?
@@ -337,12 +338,11 @@ export default function Calc() {
                     <option value="Joe">Joe</option>
                 </select>
 
-                <h3>My {veJoeOrJoe}</h3>
+                <h3 style={{display: 'flex', justifyContent: 'center', alignItems: 'center'}}>{veJoeOrJoe === 'veJoe' ? <img style={{marginRight: '10px'}} width="35" height="35" src={veJoeImg} /> : <img style={{marginRight: '10px'}} width="35" height="35" src={joe} />} My {veJoeOrJoe}</h3>
                 <input value={joeStake} type="number" onChange={(e) => handleJoeStake(e.target.value)}/>
 
                 <h3>Total veJoe Supply</h3>
-                <input style={{minWidth: "220px"}} type="number" value={veJoeSupply} onChange={(e) => setVEJoeSupply(e.target.value)} />
-
+                <input style={{minWidth: "220px"}} type="number" placeholder={veJoeSupply} onChange={(e) => setVEJoeSupply(e.target.value)} />
                     <div class="output-container">
                         <div class='output'>
                             <div style={{marginRight: "20px"}}>veJoe share</div>
@@ -358,9 +358,9 @@ export default function Calc() {
                             <div style={{marginRight: "20px"}}>Current Boosted APR</div>
                             <div class='white'>{currentBoostedAPR.toFixed(2)}%</div>
                         </div>
-                        <div class='output'>
+                        <div class='output' style={{color: "rgb(161, 165, 252)"}}>
                             <div style={{marginRight: "20px"}}>Estimated Boosted APR</div>
-                            <div class='white'>{estimatedBoostedAPR.toFixed(2)}%</div>
+                            <div>{estimatedBoostedAPR.toFixed(2)}%</div>
                         </div>
                     </div>
             </div>
