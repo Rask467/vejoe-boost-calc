@@ -58,14 +58,16 @@ export default function Calc() {
 
     joePerSec().then((resp) => {
       setJoePerSecond(resp);
-    });
+    }).catch(err => {
+      console.log("failed to load joePerSec: ", err)
+    })
+
     boostedClient
       .query({
         query: gql(poolsQuery),
       })
       .then((boostedData) => {
-        setLoading(true);
-        console.log("Subgraph data: ", boostedData);
+        console.log("boostedData: ", boostedData);
         setTotalAllocPoint(boostedData.data.masterChefs[0].totalAllocPoint);
         setBoostedPools(boostedData.data.pools);
         let poolIds = boostedData.data.pools.map((d) => d.pair);
@@ -87,17 +89,17 @@ export default function Calc() {
               (bPool) => bPool.pair === data.data.pairs[0]
             );
             setSelectedBoostedPool(boostedPool);
-            setLoading(false);
+            setLoading(false)
           })
           .catch((err) => {
             console.log("Error fetching data: ", err);
-            setLoading(false);
-          });
+            setLoading(false)
+          })
       })
       .catch((err) => {
         console.log("Error fetching data: ", err);
-        setLoading(false);
-      });
+        setLoading(false)
+      })
   }, []);
 
   useEffect(() => {
@@ -109,7 +111,7 @@ export default function Calc() {
         },
       })
       .then((data) => {
-        console.log(data);
+        console.log('veJoeQuery: ', data);
         setVeJoeData(data.data.veJoes[0]);
         setVEJoeSupply(data.data.veJoes[0].totalVeJoeMinted);
         setUserVeJoe(data.data.user);
@@ -224,14 +226,6 @@ export default function Calc() {
     setPoolShare(poolShare.toFixed(2));
   }, [token0Value, token1Value]);
 
-  let boostedPairOptions = pairs.map((pair) => {
-    return (
-      <option key={pair.id} value={pair.id}>
-        {pair.name}
-      </option>
-    );
-  });
-
   function setTokenAmount(tokenId, amount) {
     if (tokenId === 0) {
       setToken0Value(amount * selectedPair.token0Price);
@@ -245,6 +239,14 @@ export default function Calc() {
   function handleJoeStake(value) {
     setJoeStake(value);
   }
+
+  let boostedPairOptions = pairs.map((pair) => {
+    return (
+      <option key={pair.id} value={pair.id}>
+        {pair.name}
+      </option>
+    );
+  });
 
   return (
     <div class="calc-container">
@@ -290,7 +292,7 @@ export default function Calc() {
         </div>
         <div class="pool-container">
           <div style={{ marginRight: "10px" }}>
-            <h4>{selectedPair?.token0?.symbol}</h4>
+            <h3>{selectedPair?.token0?.symbol}</h3>
             <input
               type="number"
               value={token0Value}
@@ -299,7 +301,7 @@ export default function Calc() {
             />
           </div>
           <div>
-            <h4>{selectedPair?.token1?.symbol}</h4>
+            <h3>{selectedPair?.token1?.symbol}</h3>
             <input
               type="number"
               value={token1Value}
