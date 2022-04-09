@@ -18,7 +18,14 @@ const poolsQuery = `
     `
 
     const pairsQuery = `
-        query($ids: [ID]) {
+        query($ids: [ID], $user_id: ID) {
+            user(id: $user_id) {
+                id
+                liquidityPositions(where:{id_in: $ids}) {
+                    id
+                    liquidityTokenBalance
+                }
+            }
             pairs(where: {id_in: $ids}) {
                 id
                 name
