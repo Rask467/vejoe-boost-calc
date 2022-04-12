@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import "./calc.css";
 import veJoeImg from "../veJOE.png";
 import joe from "../joe.png";
-import { joePerSec } from "../utils/farms";
+import { getPoolLength, getPoolInfo, joePerSec, calcBaseAPR, calcBoostedAPR } from "../utils/farms";
 import { ethers } from "ethers";
 import { ApolloClient, InMemoryCache, gql } from "@apollo/client";
 import { poolsQuery, pairsQuery, veJoeQuery } from "../query";
@@ -11,6 +11,7 @@ import { boostedURL, exchangeURL, veJoeURL } from "../urls";
 export default function Calc() {
   const [pairs, setPairs] = useState([]);
   const [boostedPools, setBoostedPools] = useState([]);
+  const [poolInfos, setPoolInfos] = useState([])
   const [selectedPairID, setSelectedPairID] = useState("");
   const [selectedPair, setSelectedPair] = useState({});
   const [selectedBoostedPool, setSelectedBoostedPool] = useState({});
@@ -18,7 +19,6 @@ export default function Calc() {
   const [token1Value, setToken1Value] = useState(0);
   const [loading, setLoading] = useState(true);
   const [poolShare, setPoolShare] = useState(0);
-  const [veJoeOrJoe, setVeJoeOrJoe] = useState("veJoe");
   const [veJoeData, setVeJoeData] = useState({});
   const [joeStake, setJoeStake] = useState(0);
   const [joePerSecond, setJoePerSecond] = useState(0);
@@ -31,7 +31,6 @@ export default function Calc() {
   const [estimatedBoostedAPR, setEstimatedBoostedAPR] = useState(0);
   const [userLiqTokens, setUserLiqTokens] = useState(0);
   const [actualLiqTokens, setActualLiqTokens] = useState(0);
-  const SECONDSPERYEAR = 31622400;
   const boostedClient = new ApolloClient({
     uri: boostedURL,
     cache: new InMemoryCache(),
@@ -49,7 +48,6 @@ export default function Calc() {
     try {
       const provider = new ethers.providers.Web3Provider(window.ethereum);
       provider.send("eth_requestAccounts", []).then((resp) => {
-        console.log(resp);
         setUserAddr(resp[0]);
       });
     } catch (err) {
@@ -65,6 +63,21 @@ export default function Calc() {
       .catch((err) => {
         console.log("failed to load joePerSec: ", err);
       });
+
+    getPoolLength().then(resp => {
+      let ps = []
+      for(let i = 0; i < resp.toNumber(); i++) {
+        getPoolInfo(i).then(resp => {
+          ps.push(resp)
+        }).catch(err => {
+          console.log(`failed to get pool info for index: ${i} err: ${err}`)
+        })
+      }
+      setPoolInfos(ps)
+    })
+    .catch(err => {
+      console.log('Failed to get pool length: ', err)
+    })
 
     boostedClient
       .query({
@@ -104,8 +117,8 @@ export default function Calc() {
   }, []);
 
   useEffect(() => {
-    if(userAddr === undefined || userAddr === '') {
-      return
+    if (userAddr === undefined || userAddr === "") {
+      return;
     }
     veJoeClient
       .query({
@@ -119,13 +132,15 @@ export default function Calc() {
         setVeJoeData(data.data.veJoes[0]);
         setVEJoeSupply(data.data.veJoes[0].totalVeJoeMinted);
         setUserVeJoe(data.data.user);
+        if (data.data.user !== null) {
+          setJoeStake(data.data.user.veJoeBalance);
+        }
       })
       .catch((err) => {
         console.log("Error fetching data: ", err);
       });
 
     let poolIds = boostedPools.map((d) => d.pair);
-    console.log("poolIds: ", poolIds)
     exchangeClient
       .query({
         query: gql(pairsQuery),
@@ -162,48 +177,49 @@ export default function Calc() {
       selectedBoostedPool !== undefined &&
       selectedBoostedPool.allocPoint !== undefined
     ) {
-      console.log("boostedPool", selectedBoostedPool);
-      console.log("p.allocPoint: ", selectedBoostedPool.allocPoint);
-      console.log("totalAllocPoint: ", totalAllocPoint);
-      console.log("joePerSec: ", joePerSecond);
       const selectedPoolsJoePerSec =
         (selectedBoostedPool.allocPoint / totalAllocPoint) * joePerSecond;
       const joePriceInUSD = joePair.reserve1 / joePair.reserve0;
-      const baseJoeRewardsPerSec = selectedPoolsJoePerSec * 0.5;
-
-      // Possible second way to calc apr
-      // const userLiq = selectedPair.totalSupply;
-      // const rewardsPerSec = (userLiq * poolsJoePerSec * 0.5) / p.totalSupply
-      // const rewardsPerYear = rewardsPerSec * SECONDSPERYEAR
-      // const apr = (((rewardsPerYear/(10**18)) * joePriceInUSD) / p.reserveUSD) * 100
-      // console.log("APR: ", apr)
-
-      console.log("userLiq: ", userLiqTokens);
-      console.log("poolsJoePerSec: ", selectedPoolsJoePerSec);
-      console.log("baseJoeRewardsPerSec: ", baseJoeRewardsPerSec);
-      console.log("joePriceInUSD: ", joePriceInUSD);
-      console.log("p.volumeUSD: ", selectedPair.volumeUSD);
-      console.log("p.reserveUSD: ", selectedPair.reserveUSD);
-      console.log("joeStake: ", joeStake);
-
       let currentVeJoeBal = 0;
       if (userVeJoe !== null) {
         currentVeJoeBal = userVeJoe.veJoeBalance;
       }
-      // I need to use the real numbers for userLiq in these equations
-      setCurrentBoostedAPR(
-        calcBoostedAPR(
-          selectedPair,
-          actualLiqTokens,
-          currentVeJoeBal,
-          joePriceInUSD
-        )
-      );
-      setEstimatedBoostedAPR(
-        calcBoostedAPR(selectedPair, userLiqTokens, joeStake, joePriceInUSD)
-      );
+      let poolInfo = poolInfos.find(p => p[0].toLowerCase() === selectedPair.id.toLowerCase())
+      const totalDeposited = (token0Value * selectedPair.token0Price) + (token1Value * selectedPair.token1Price)
+      if (poolInfo !== undefined) {
+        setCurrentBoostedAPR(
+          calcBoostedAPR(
+            selectedPair,
+            actualLiqTokens,
+            currentVeJoeBal,
+            joePriceInUSD,
+            selectedPoolsJoePerSec,
+            poolInfo,
+            totalDeposited
+          )
+        );
+        setEstimatedBoostedAPR(
+          calcBoostedAPR(
+            selectedPair,
+            userLiqTokens,
+            joeStake,
+            joePriceInUSD,
+            selectedPoolsJoePerSec,
+            poolInfo,
+            totalDeposited
+          )
+        );
+      }
     }
-  }, [userAddr, joeStake, userVeJoe, token0Value, token1Value, userLiqTokens, actualLiqTokens]);
+  }, [
+    userAddr,
+    joeStake,
+    userVeJoe,
+    token0Value,
+    token1Value,
+    userLiqTokens,
+    actualLiqTokens,
+  ]);
 
   useEffect(() => {
     let joePair = pairs.find(
@@ -215,62 +231,20 @@ export default function Calc() {
       selectedBoostedPool.allocPoint !== undefined &&
       joePair !== undefined
     ) {
-      console.log("selectedBoostedPool: ", selectedBoostedPool);
-      console.log("totalAllocPoint: ", totalAllocPoint);
-      console.log("joePerSecond: ", joePerSecond);
+      const formattedJoePerSecond = ethers.utils.formatUnits(joePerSecond, 18);
       const selectedPoolsJoePerSec =
-        (selectedBoostedPool.allocPoint / totalAllocPoint) * joePerSecond;
+        (selectedBoostedPool.allocPoint / totalAllocPoint) *
+        formattedJoePerSecond;
       const joePriceInUSD = joePair.reserve1 / joePair.reserve0;
-      console.log("selectedPoolsJoePerSec: ", selectedPoolsJoePerSec);
       const baseJoeRewardsPerSec = selectedPoolsJoePerSec * 0.5;
-      console.log("baseJoeRewardsPerSec: ", baseJoeRewardsPerSec);
       const baseAPR = calcBaseAPR(
         selectedPair,
         baseJoeRewardsPerSec,
         joePriceInUSD
       );
-      console.log("baseAPR", baseAPR);
       setBaseAPR(baseAPR);
     }
   }, [selectedPairID, selectedBoostedPool, selectedPair]);
-
-  function calcBoostedAPR(p, userLiq, veJoe, joePriceInUSD) {
-    const userFarmFactor = Math.sqrt(userLiq * veJoe);
-    const totalFarmFactor = 1;
-    console.log("userFarmFactor: ", userFarmFactor);
-    const userBoostedRewardsPerSec =
-      (userFarmFactor * joePerSecond * 0.5) / totalFarmFactor;
-    console.log("userBoostedRewardsPerSec: ", userBoostedRewardsPerSec);
-    const userBoostedRewardsPerYear = userBoostedRewardsPerSec * SECONDSPERYEAR;
-    console.log("userBoostedRewardsPerYear: ", userBoostedRewardsPerYear);
-    const boostedAPR =
-      (((userBoostedRewardsPerYear / 10 ** 18) * joePriceInUSD) /
-        p.reserveUSD) *
-      100;
-    console.log("boostedAPR: ", boostedAPR);
-    return boostedAPR;
-  }
-
-  function calcBaseAPR(p, baseJoeRewardsPerSec, joePriceInUSD) {
-    const baseJoeRewardsPerYear = baseJoeRewardsPerSec * SECONDSPERYEAR;
-    const baseJoeAPR =
-      (((baseJoeRewardsPerYear / 10 ** 18) * joePriceInUSD) / p.reserveUSD) *
-      100;
-
-    let volumeUSD;
-    if (p.volumeUSD !== "0") {
-      volumeUSD = p.volumeUSD;
-    } else {
-      const volumeToken0USD = p.volumeToken0 * p.token0Price;
-      const volumeToken1USD = p.volumeToken1 * p.token1Price;
-      volumeUSD = volumeToken0USD + volumeToken1USD;
-    }
-    const basePoolAPR = ((volumeUSD * 0.0025) / p.reserveUSD) * 100;
-
-    console.log("baseJoeRewardsPerYear: ", baseJoeRewardsPerYear);
-    console.log("baseJoeAPR", baseJoeAPR);
-    return baseJoeAPR + basePoolAPR;
-  }
 
   useEffect(() => {
     let p = pairs.find((pair) => pair.id === selectedPairID);
@@ -294,13 +268,8 @@ export default function Calc() {
     const totalInPool = selectedPair.reserve0 * selectedPair.reserve1;
     const totalAddedByUser = token0Value * token1Value;
     const poolShare = (totalAddedByUser / totalInPool) * 100;
-    console.log("token0Value: ", token0Value);
-    console.log("selectedPair: ", selectedPair);
-    console.log("selectedPair.totalSupply: ", selectedPair.totalSupply);
-    console.log("selectedPair.reserve0: ", selectedPair.reserve0);
     const userLiqTokens =
       token0Value * (selectedPair.totalSupply / selectedPair.reserve0);
-    console.log("userLiqTokens: ", userLiqTokens);
     setUserLiqTokens(userLiqTokens);
     setPoolShare(poolShare.toFixed(2));
   }, [token0Value, token1Value, selectedPair]);
@@ -365,7 +334,7 @@ export default function Calc() {
             {boostedPairOptions}
           </select>
         )}
-        <h3>Pool liquidity</h3>
+        <h3>Total Pool LP Tokens</h3>
         <div style={{ marginBottom: "20px" }}>
           <input type="number" placeholder={selectedPair?.totalSupply} />
         </div>
@@ -402,15 +371,6 @@ export default function Calc() {
           </div>
         </div>
 
-        <select
-          style={{ marginTop: "15px" }}
-          value={veJoeOrJoe}
-          onChange={(e) => setVeJoeOrJoe(e.target.value)}
-        >
-          <option value="veJoe">veJoe</option>
-          <option value="Joe">Joe</option>
-        </select>
-
         <h3
           style={{
             display: "flex",
@@ -418,25 +378,16 @@ export default function Calc() {
             alignItems: "center",
           }}
         >
-          {veJoeOrJoe === "veJoe" ? (
-            <img
-              style={{ marginRight: "10px" }}
-              width="35"
-              height="35"
-              src={veJoeImg}
-            />
-          ) : (
-            <img
-              style={{ marginRight: "10px" }}
-              width="35"
-              height="35"
-              src={joe}
-            />
-          )}{" "}
-          My {veJoeOrJoe}
+          <img
+            style={{ marginRight: "10px" }}
+            width="35"
+            height="35"
+            src={veJoeImg}
+          />
+          My veJoe
         </h3>
         <input
-          value={joeStake}
+          placeholder={joeStake}
           type="number"
           onChange={(e) => handleJoeStake(e.target.value)}
         />
@@ -469,6 +420,10 @@ export default function Calc() {
           <div className="output" style={{ color: "rgb(161, 165, 252)" }}>
             <div style={{ marginRight: "20px" }}>Estimated Boosted APR</div>
             <div>{estimatedBoostedAPR.toFixed(2)}%</div>
+          </div>
+          <div className="output">
+            <div style={{ marginRight: "20px" }}>Total APR</div>
+            <div className="white">{(estimatedBoostedAPR + baseAPR).toFixed(2)}%</div>
           </div>
         </div>
       </div>
